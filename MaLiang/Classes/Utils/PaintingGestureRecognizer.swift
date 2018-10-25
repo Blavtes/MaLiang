@@ -8,20 +8,20 @@
 import UIKit.UIGestureRecognizerSubclass
 
 
-class PaintingGestureRecognizer: UIPanGestureRecognizer {
+open class PaintingGestureRecognizer: UIPanGestureRecognizer {
 
     private weak var targetView: UIView!
     
     @discardableResult
     class func addToTarget(_ target: UIView, action: Selector) -> PaintingGestureRecognizer {
-        let ges = PaintingGestureRecognizer(target: target, action: action)
+        let ges = PaintingGestureRecognizer(targetView: target, action: action)
         target.addGestureRecognizer(ges)
         return ges
     }
     
-    init(target: UIView, action: Selector?) {
-        targetView = target
-        super.init(target: target, action: action)
+    convenience init(targetView t: UIView, action: Selector?) {
+        self.init(target: t, action: action)
+        targetView = t
         maximumNumberOfTouches = 1
         
     }
@@ -49,17 +49,17 @@ class PaintingGestureRecognizer: UIPanGestureRecognizer {
     }
     
     // MARK: - Touch Handling
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+    override open func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         updateForceFromTouches(touches)
         super.touchesBegan(touches, with: event)
     }
     
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+    override open func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
         updateForceFromTouches(touches)
         super.touchesMoved(touches, with: event)
     }
     
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+    override open func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
         updateForceFromTouches(touches)
         super.touchesEnded(touches, with: event)
     }

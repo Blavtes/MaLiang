@@ -74,12 +74,7 @@ open class MLView: UIView {
     }
     
     func getCachedTexture(with id: GLuint) -> MLTexture? {
-        for text in cachedTextures {
-            if text.gl_id == id {
-                return text
-            }
-        }
-        return nil
+        return cachedTextures.first{ $0.gl_id == id }
     }
     
     /// Cache a texture if not cached
@@ -189,6 +184,9 @@ open class MLView: UIView {
         
         // Make sure to start with a cleared buffer
         needsClear = true
+        
+        // initializ OpenGL
+        initialized = initGL()
     }
     
     // If our view is resized, we'll be asked to layout subviews.

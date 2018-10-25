@@ -19,14 +19,25 @@ open class Canvas: MLView {
     /// enable force
     open var forceEnabled: Bool {
         get {
-            return paintingGesture.forceEnabled
+            return paintingGesture?.forceEnabled ?? false
         }
         set {
-            paintingGesture.forceEnabled = newValue
+            paintingGesture?.forceEnabled = newValue
         }
     }
     
-    private var paintingGesture: PaintingGestureRecognizer!
+    // setup gestures
+    open var paintingGesture: PaintingGestureRecognizer?
+
+    open func setupGestureRecognizers() {
+        /// gesture to render line
+        paintingGesture = PaintingGestureRecognizer.addToTarget(self, action: #selector(handlePaingtingGesture(_:)))
+        /// gesture to render dot
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapGesture(_:)))
+        addGestureRecognizer(tapGesture)
+    }
+    
+    
     /// this will setup the canvas and gestures、default brushs
     open override func setup() {
         super.setup()
@@ -35,11 +46,7 @@ open class Canvas: MLView {
             brush = Brush(texture: MLTexture.default)
         }
         
-        /// gesture to render line
-        paintingGesture = PaintingGestureRecognizer.addToTarget(self, action: #selector(handlePaingtingGesture(_:)))
-        /// gesture to render dot
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTapGesture(_:)))
-        addGestureRecognizer(tapGesture)
+        setupGestureRecognizers()
     }
     
     /// take a snapshot on current canvas and export an image
@@ -60,6 +67,11 @@ open class Canvas: MLView {
         if display {
             document?.appendClearAction()
         }
+    }
+    
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        redraw()
     }
     
     // MARK: - Document
@@ -100,12 +112,9 @@ open class Canvas: MLView {
             
             /// redraw with the order it does originaly
             for element in elementsToRedraw {
-                var texture = getCachedTexture(with: element.textureId)
-                if texture == nil {
-                    doc.createTexture(for: element)
-                    texture = getCachedTexture(with: element.textureId)
+                if let texture = getCachedTexture(for: element) {
+                    self.texture = texture
                 }
-                self.texture = texture
                 for line in element.lines {
                     super.renderLine(line, display: false)
                 }
@@ -113,6 +122,13 @@ open class Canvas: MLView {
             displayBuffer()
             texture = brush.texture
         }
+    }
+    
+    func getCachedTexture(for element: CanvasElement) -> MLTexture? {
+        if let t = super.getCachedTexture(with: element.textureId) {
+            return t
+        }
+        return document?.createTexture(for: element)
     }
         
     // MARK: - Bezier
@@ -155,17 +171,21 @@ open class Canvas: MLView {
         super.renderLine(line, display: display)
         document?.appendLines([line], with: brush.texture)
     }
+    
+    open func renderTap(at point: CGPoint, to: CGPoint? = nil) {
+        var line = brush.line(from: point, to: to ?? point)
+        /// fix the opacity of color when there is only one point
+        let delta = max((brush.pointSize - brush.pointStep), 0) / brush.pointSize
+        let opacity = brush.opacity + (1 - brush.opacity) * delta
+        line.color = brush.color.mlcolorWith(opacity: opacity)
+        self.renderLine(line)
+    }
 
     // MARK: - Gestures
     @objc private func handleTapGesture(_ gesture: UITapGestureRecognizer) {
         if gesture.state == .recognized {
             let location = gesture.gl_location(in: self)
-            var line = brush.line(from: location, to: location)
-            /// fix the opacity of color when there is only one point
-            let delta = max((brush.pointSize - brush.pointStep), 0) / brush.pointSize
-            let opacity = brush.opacity + (1 - brush.opacity) * delta
-            line.color = brush.color.mlcolorWith(opacity: opacity)
-            self.renderLine(line)
+            renderTap(at: location)
             document?.finishCurrentElement()
         }
     }
@@ -183,7 +203,12 @@ open class Canvas: MLView {
             pushPoint(location, to: bezierGenerator, force: gesture.force)
         }
         else if gesture.state == .ended {
-            pushPoint(location, to: bezierGenerator, force: gesture.force, isEnd: true)
+            let count = bezierGenerator.points.count
+            if count < 3 {
+                renderTap(at: bezierGenerator.points.first!, to: bezierGenerator.points.last!)
+            } else {
+                pushPoint(location, to: bezierGenerator, force: gesture.force, isEnd: true)
+            }
             bezierGenerator.finish()
             lastRenderedPan = nil
             document?.finishCurrentElement()
